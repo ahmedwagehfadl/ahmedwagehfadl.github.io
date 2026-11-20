@@ -416,7 +416,11 @@ function renderSettings(err) {
     inp,
     el("div", { class: "row" },
       el("button", { class: "primary", onclick: () => { token = cleanToken(inp.value); inp.value = token;
-        if (!/^(github_pat_|ghp_)/.test(token)) { status("That doesn't look like a GitHub token (should start with github_pat_)", "err"); return; }
+        if (!/^(github_pat_|ghp_)/.test(token)) {
+          const msg = "What you pasted is not a GitHub token (it must start with github_pat_). Copy the token again and paste it here.";
+          status(msg, "err"); inp.value = ""; inp.placeholder = "github_pat_…  (paste the token here)";
+          let e = box.querySelector(".tokerr"); if (!e) { e = el("p", { class: "tokerr", style: "color:var(--red)" }); inp.after(e); }
+          e.textContent = msg; token = ""; return; }
         try { localStorage.setItem(LS_TOKEN, token); } catch(e) {} current = null; loadAll(); } }, "Save token"),
       el("button", { onclick: () => { token = ""; inp.value = ""; try { localStorage.removeItem(LS_TOKEN); } catch(e) {} status("Token removed"); } }, "Remove token")),
     err ? el("p", { style: "color:var(--red)" }, err) : null,
