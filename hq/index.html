@@ -99,8 +99,10 @@ const FILE = "TASKS.md";
 const STD = ["Now","Next","Backlog","Done"];
 const LS_TOKEN = "afhq.token";
 
+// keep only the characters a GitHub token can contain (drops spaces / invisible marks picked up by copy-paste)
+const cleanToken = s => (s || "").replace(/[^A-Za-z0-9_]/g, "");
 let token = "";
-try { token = localStorage.getItem(LS_TOKEN) || ""; } catch(e) {}
+try { token = cleanToken(localStorage.getItem(LS_TOKEN)); } catch(e) {}
 
 let projects = [];          // [{name, repo}]
 let cache = {};             // repo -> {model, sha}
@@ -413,7 +415,9 @@ function renderSettings(err) {
     el("p", {}, "Paste your GitHub fine-grained token (Contents: read & write on your project repos). It stays in this browser only."),
     inp,
     el("div", { class: "row" },
-      el("button", { class: "primary", onclick: () => { token = inp.value.trim(); try { localStorage.setItem(LS_TOKEN, token); } catch(e) {} current = null; loadAll(); } }, "Save token"),
+      el("button", { class: "primary", onclick: () => { token = cleanToken(inp.value); inp.value = token;
+        if (!/^(github_pat_|ghp_)/.test(token)) { status("That doesn't look like a GitHub token (should start with github_pat_)", "err"); return; }
+        try { localStorage.setItem(LS_TOKEN, token); } catch(e) {} current = null; loadAll(); } }, "Save token"),
       el("button", { onclick: () => { token = ""; inp.value = ""; try { localStorage.removeItem(LS_TOKEN); } catch(e) {} status("Token removed"); } }, "Remove token")),
     err ? el("p", { style: "color:var(--red)" }, err) : null,
     el("div", { class: "hint" }, "Tips: + adds a task · tick = done · double-click to edit · drag between columns · ", el("kbd", {}, "Ctrl"), "+", el("kbd", {}, "S"), " saves."));
