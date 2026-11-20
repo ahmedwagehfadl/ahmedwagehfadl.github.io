@@ -142,7 +142,7 @@ const b64dec = b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/
 const b64enc = s => { const by = new TextEncoder().encode(s); let bin = ""; for (const x of by) bin += String.fromCharCode(x); return btoa(bin); };
 
 async function getFile(repo, file) {
-  const j = await gh(`/repos/${OWNER}/${repo}/contents/${encodeURIComponent(file)}?ref=main&t=${Date.now()}`);
+  const j = await gh(`/repos/${OWNER}/${repo}/contents/${file.split("/").map(encodeURIComponent).join("/")}?ref=main&t=${Date.now()}`);
   return { text: b64dec(j.content), sha: j.sha };
 }
 
@@ -223,24 +223,27 @@ async function loadAll() {
   status("Loading…");
   try {
     const list = await getFile(LIST_REPO, LIST_FILE);
-    projects = JSON.parse(list.text);
+    // each project: {name, repo, path?, id?} — path defaults to TASKS.md at the repo root
+    projects = JSON.parse(list.text).map(p => ({ ...p, path: p.path || FILE, id: p.id || p.repo }));
   } catch (e) {
     status("Can't read project list: " + e.message, "err");
     if (e.status === 401 || e.status === 403 || e.status === 404) renderSettings(e.message);
     return;
   }
-  await Promise.all(projects.map(p => loadRepo(p.repo).catch(e => { cache[p.repo] = { error: e.message }; })));
+  await Promise.all(projects.map(p => loadRepo(p).catch(e => { cache[p.id] = { error: e.message }; })));
   status("Up to date", "ok");
   renderNav();
   const want = location.hash.slice(1);
-  show(projects.some(p => p.repo === want) ? want : (current && current !== "__settings" ? current : "__overview"));
+  show(projects.some(p => p.id === want) ? want : (current && current !== "__settings" && proj(current) ? current : "__overview"));
 }
-async function loadRepo(repo) {
+const proj = id => projects.find(p => p.id === id);
+async function loadRepo(p) {
+  if (!p) return;
   try {
-    const f = await getFile(repo, FILE);
-    cache[repo] = { model: parse(f.text), sha: f.sha };
+    const f = await getFile(p.repo, p.path);
+    cache[p.id] = { model: parse(f.text), sha: f.sha };
   } catch (e) {
-    if (e.status === 404) cache[repo] = { model: parse("# Tasks\n"), sha: null };
+    if (e.status === 404) cache[p.id] = { model: parse("# Tasks\n"), sha: null };
     else throw e;
   }
 }
@@ -248,19 +251,19 @@ async function loadRepo(repo) {
 /* ---------- saving ---------- */
 async function save() {
   if (!ops.length || !current || !cache[current]?.model) return;
-  const repo = current, pending = ops.slice();
+  const id = current, p = proj(id), pending = ops.slice();
   $("#saveBtn").disabled = true; status("Saving…");
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       let latest;
-      try { const f = await getFile(repo, FILE); latest = { model: parse(f.text), sha: f.sha }; }
+      try { const f = await getFile(p.repo, p.path); latest = { model: parse(f.text), sha: f.sha }; }
       catch (e) { if (e.status === 404) latest = { model: parse("# Tasks\n"), sha: null }; else throw e; }
       const merged = latest.model;
       for (const op of pending) applyOp(merged, op);
       const body = { message: `Tasks: ${summary(pending)} (dashboard)`, content: b64enc(serialize(merged)), branch: "main" };
       if (latest.sha) body.sha = latest.sha;
-      const r = await gh(`/repos/${OWNER}/${repo}/contents/${FILE}`, { method: "PUT", body: JSON.stringify(body) });
-      cache[repo] = { model: merged, sha: r.content.sha };
+      const r = await gh(`/repos/${OWNER}/${p.repo}/contents/${p.path}`, { method: "PUT", body: JSON.stringify(body) });
+      cache[id] = { model: merged, sha: r.content.sha };
       ops = [];
       status("Saved ✓ " + new Date().toLocaleTimeString(), "ok");
       renderNav(); renderBoard();
@@ -289,17 +292,17 @@ function renderNav() {
   nav.append(el("button", { class: "proj" + (current === "__overview" ? " active" : ""), onclick: () => show("__overview") },
     el("div", { class: "name" }, el("b", {}, "Overview"))));
   for (const p of projects) {
-    const c = cache[p.repo];
+    const c = cache[p.id];
     const pr = c?.model ? progress(c.model) : null;
     const bar = el("div", { class: "bar" }, el("i")); if (pr) bar.firstChild.style.width = pr.pct + "%";
-    nav.append(el("button", { class: "proj" + (current === p.repo ? " active" : ""), onclick: () => show(p.repo) },
+    nav.append(el("button", { class: "proj" + (current === p.id ? " active" : ""), onclick: () => show(p.id) },
       el("div", { class: "name" }, el("span", {}, p.name), el("span", { class: "pct" }, c?.error ? "!" : pr ? pr.pct + "%" : "…")),
       bar));
   }
 }
 function show(target) {
   if (ops.length && target !== current && !confirm("You have unsaved changes. Discard them?")) return;
-  if (target !== current && ops.length) { ops = []; loadRepo(current).then(() => { renderNav(); }); markDirty(); }
+  if (target !== current && ops.length) { ops = []; loadRepo(proj(current)).then(() => { renderNav(); }); markDirty(); }
   current = target;
   history.replaceState(null, "", target.startsWith("__") ? location.pathname : "#" + target);
   $("#saveBtn").style.display = target.startsWith("__") ? "none" : "";
@@ -313,8 +316,8 @@ function renderOverview() {
   m.append(el("div", { class: "ptitle" }, el("h2", {}, "All projects"), el("span", { class: "meta" }, "What's in Now for each project")));
   const grid = el("div", { class: "overview" });
   for (const p of projects) {
-    const c = cache[p.repo];
-    const card = el("div", { class: "card", onclick: () => show(p.repo) });
+    const c = cache[p.id];
+    const card = el("div", { class: "card", onclick: () => show(p.id) });
     if (!c?.model) { card.append(el("h4", {}, p.name), el("div", { class: "none" }, c?.error || "Loading…")); grid.append(card); continue; }
     const pr = progress(c.model);
     const bar = el("div", { class: "bar" }, el("i")); bar.firstChild.style.width = pr.pct + "%";
@@ -328,12 +331,13 @@ function renderOverview() {
 }
 function renderBoard() {
   if (!current || current.startsWith("__")) return;
-  const p = projects.find(x => x.repo === current), c = cache[current];
+  const p = proj(current), c = cache[current];
   const m = $("#main"); m.innerHTML = "";
+  if (!p) { show("__overview"); return; }
   if (!c?.model) { m.append(el("p", {}, c?.error || "Loading…")); return; }
   const pr = progress(c.model);
   const meta = el("span", { class: "meta" }, `${pr.done}/${pr.total} done · ${pr.pct}% · `,
-    el("a", { href: `https://github.com/${OWNER}/${current}/blob/main/${FILE}`, target: "_blank", style: "color:var(--muted)" }, `${current}/${FILE}`));
+    el("a", { href: `https://github.com/${OWNER}/${p.repo}/blob/main/${p.path}`, target: "_blank", style: "color:var(--muted)" }, `${p.repo}/${p.path}`));
   m.append(el("div", { class: "ptitle" }, el("h2", {}, p?.name || current), meta));
   const board = el("div", { class: "board" });
   c.model.sections.forEach(s => board.append(renderCol(s)));
