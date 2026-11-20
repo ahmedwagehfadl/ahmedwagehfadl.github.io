@@ -51,6 +51,11 @@ main{flex:1;padding:18px;min-width:0}
 .item input[type=checkbox]{margin-top:3px;accent-color:var(--teal);width:15px;height:15px;flex:none;cursor:pointer}
 .item .txt{flex:1;word-break:break-word;white-space:pre-wrap;min-width:0}
 .item.done .txt{color:var(--muted);text-decoration:line-through}
+.item.prog{border-left:3px solid var(--gold)}
+.item .progb{opacity:.35;font-size:13px}
+.item .progb.on{opacity:1;color:var(--gold)}
+.item:hover .progb{opacity:1}
+.col h3 > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .del{opacity:0}
 .item:hover .del{opacity:1}
 .item .edit{flex:1}
@@ -156,12 +161,13 @@ function parse(text) {
   for (const line of lines) {
     const h = line.match(/^##\s+(.+?)\s*$/);
     if (h) { sec = { title: h[1], lines: [] }; model.sections.push(sec); continue; }
-    const it = line.match(/^\s*[-*]\s+\[( |x|X)\]\s?(.*)$/);
+    const it = line.match(/^\s*[-*]\s+\[( |x|X|~)\]\s?(.*)$/);
     if (!sec) { model.head.push(line); continue; }
-    if (it) sec.lines.push({ kind: "item", done: it[1] !== " ", text: it[2] });
+    if (it) sec.lines.push({ kind: "item", done: /x/i.test(it[1]), prog: it[1] === "~", text: it[2] });
     else sec.lines.push({ kind: "raw", text: line });
   }
-  for (const s of STD) if (!findSec(model, s)) model.sections.push({ title: s, lines: [] });
+  // a file with its own sections (e.g. phases) keeps them; an empty file gets the standard 4
+  if (!model.sections.length) for (const s of STD) model.sections.push({ title: s, lines: [] });
   return model;
 }
 function serialize(model) {
@@ -169,7 +175,7 @@ function serialize(model) {
   while (head.length && head[head.length - 1].trim() === "") head.pop();
   const out = [head.join("\n")];
   for (const s of model.sections) {
-    const body = s.lines.map(l => l.kind === "item" ? `- [${l.done ? "x" : " "}] ${l.text}` : l.text);
+    const body = s.lines.map(l => l.kind === "item" ? `- [${l.done ? "x" : l.prog ? "~" : " "}] ${l.text}` : l.text);
     while (body.length && body[body.length - 1].trim() === "") body.pop();
     while (body.length && body[0].trim() === "") body.shift();
     out.push(`## ${s.title}` + (body.length ? "\n" + body.join("\n") : ""));
@@ -179,9 +185,10 @@ function serialize(model) {
 const findSec = (m, t) => m.sections.find(s => s.title.toLowerCase() === t.toLowerCase());
 const items = m => m.sections.flatMap(s => s.lines.filter(l => l.kind === "item"));
 function progress(m) {
-  const all = items(m), done = all.filter(i => i.done).length;
-  return { done, total: all.length, pct: all.length ? Math.round(done * 100 / all.length) : 0 };
+  const all = items(m), done = all.filter(i => i.done).length, prog = all.filter(i => !i.done && i.prog).length;
+  return { done, prog, total: all.length, pct: all.length ? Math.round(done * 100 / all.length) : 0 };
 }
+const hasDoneCol = m => !!findSec(m, "Done");
 function locate(m, text) {
   for (const s of m.sections) { const i = s.lines.findIndex(l => l.kind === "item" && l.text === text); if (i >= 0) return { s, i }; }
   return null;
@@ -199,10 +206,11 @@ function applyOp(m, op) {
   const it = at.s.lines[at.i];
   if (op.t === "del") at.s.lines.splice(at.i, 1);
   else if (op.t === "edit") it.text = op.to;
+  else if (op.t === "mark") { it.done = op.mark === "x"; it.prog = op.mark === "~"; }
   else if (op.t === "move") {
     at.s.lines.splice(at.i, 1);
     let s = findSec(m, op.sec); if (!s) { s = { title: op.sec, lines: [] }; m.sections.push(s); }
-    if (op.done !== undefined) it.done = op.done;
+    if (op.done !== undefined) { it.done = op.done; if (op.done) it.prog = false; }
     const idx = Math.min(op.index ?? s.lines.length, s.lines.length);
     s.lines.splice(idx, 0, it);
   }
@@ -344,8 +352,10 @@ function renderOverview() {
     if (!c?.model) { card.append(el("h4", {}, p.name), el("div", { class: "none" }, c?.error || "Loading…")); grid.append(card); continue; }
     const pr = progress(c.model);
     const bar = el("div", { class: "bar" }, el("i")); bar.firstChild.style.width = pr.pct + "%";
-    const now = (findSec(c.model, "Now")?.lines || []).filter(l => l.kind === "item" && !l.done);
+    const nowSec = findSec(c.model, "Now") || c.model.sections.find(s => s.lines.some(l => l.kind === "item" && !l.done));
+    const now = (nowSec?.lines || []).filter(l => l.kind === "item" && !l.done);
     card.append(el("h4", {}, p.name, el("span", {}, `${pr.done}/${pr.total} · ${pr.pct}%`)), bar, updEl(c));
+    if (nowSec && nowSec.title.toLowerCase() !== "now") card.append(el("div", { class: "upd", dir: "auto" }, nowSec.title + ":"));
     if (now.length) card.append(el("ul", {}, ...now.slice(0, 5).map(i => el("li", { dir: "auto" }, i.text))));
     else card.append(el("div", { class: "none" }, "Nothing in Now"));
     grid.append(card);
@@ -359,7 +369,7 @@ function renderBoard() {
   if (!p) { show("__overview"); return; }
   if (!c?.model) { m.append(el("p", {}, c?.error || "Loading…")); return; }
   const pr = progress(c.model);
-  const meta = el("span", { class: "meta" }, `${pr.done}/${pr.total} done · ${pr.pct}% · `,
+  const meta = el("span", { class: "meta" }, `${pr.done}/${pr.total} done · ${pr.pct}%${pr.prog ? ` · ${pr.prog} in progress` : ""} · `,
     el("a", { href: `https://github.com/${OWNER}/${p.repo}/blob/main/${p.path}`, target: "_blank", style: "color:var(--muted)" }, `${p.repo}/${p.path}`));
   m.append(el("div", { class: "ptitle" }, el("h2", {}, p?.name || current), meta, updEl(c, true)));
   const board = el("div", { class: "board" });
@@ -370,7 +380,8 @@ function renderCol(s) {
   const its = s.lines.filter(l => l.kind === "item");
   const col = el("div", { class: "col", "data-sec": s.title });
   const list = el("div", { class: "list" });
-  col.append(el("h3", {}, s.title, el("span", { class: "count" }, its.length),
+  const dn = its.filter(i => i.done).length;
+  col.append(el("h3", {}, el("span", { dir: "auto" }, s.title), el("span", { class: "count", title: "done / total" }, s.title.toLowerCase() === "done" || dn === 0 ? its.length : `${dn}/${its.length}`),
     el("button", { class: "icon add", title: "Add task", onclick: () => addRow(list, s.title) }, "+")), list);
   s.lines.forEach(l => {
     if (l.kind === "raw") { if (l.text.trim()) list.append(el("div", { class: "raw", dir: "auto" }, l.text)); return; }
@@ -392,12 +403,16 @@ function renderCol(s) {
 }
 function renderItem(l, secTitle) {
   const cb = el("input", { type: "checkbox" }); cb.checked = l.done;
+  const m = cache[current].model;
   cb.addEventListener("change", () => {
-    if (cb.checked) doOp({ t: "move", text: l.text, sec: "Done", index: 0, done: true });
+    if (!hasDoneCol(m)) doOp({ t: "mark", text: l.text, mark: cb.checked ? "x" : " " });   // phase layout: tick in place
+    else if (cb.checked) doOp({ t: "move", text: l.text, sec: "Done", index: 0, done: true });
     else doOp({ t: "move", text: l.text, sec: secTitle.toLowerCase() === "done" ? "Now" : secTitle, done: false });
   });
   const txt = el("div", { class: "txt", dir: "auto", title: "Double-click to edit" }, l.text);
-  const row = el("div", { class: "item" + (l.done ? " done" : ""), draggable: "true", "data-text": l.text }, cb, txt,
+  const progBtn = l.done ? null : el("button", { class: "icon progb" + (l.prog ? " on" : ""), title: l.prog ? "In progress — click to set 'not started'" : "Mark as in progress",
+    onclick: () => doOp({ t: "mark", text: l.text, mark: l.prog ? " " : "~" }) }, "◐");
+  const row = el("div", { class: "item" + (l.done ? " done" : l.prog ? " prog" : ""), draggable: "true", "data-text": l.text }, cb, txt, progBtn,
     el("button", { class: "icon del", title: "Delete", onclick: () => { if (confirm("Delete this task?")) doOp({ t: "del", text: l.text }); } }, "×"));
   txt.addEventListener("dblclick", () => {
     const inp = el("input", { type: "text", class: "edit", dir: "auto" }); inp.value = l.text;
