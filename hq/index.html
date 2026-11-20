@@ -169,6 +169,7 @@ function serialize(model) {
   for (const s of model.sections) {
     const body = s.lines.map(l => l.kind === "item" ? `- [${l.done ? "x" : " "}] ${l.text}` : l.text);
     while (body.length && body[body.length - 1].trim() === "") body.pop();
+    while (body.length && body[0].trim() === "") body.shift();
     out.push(`## ${s.title}` + (body.length ? "\n" + body.join("\n") : ""));
   }
   return out.join("\n\n") + "\n";
