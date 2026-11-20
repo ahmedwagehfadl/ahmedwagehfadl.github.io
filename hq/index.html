@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>AF Gaming HQ</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a; --text:#e7e9ee; --muted:#8b93a3;
+  --gold:#d9b25f; --teal:#3fb8a9; --red:#e06c6c; --radius:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:#3a4150}
+button.primary{background:var(--gold);color:#1a1405;border-color:var(--gold);font-weight:600}
+button.primary:disabled{opacity:.45;cursor:default}
+button.icon{padding:2px 8px;background:transparent;border-color:transparent;color:var(--muted)}
+button.icon:hover{color:var(--text);border-color:var(--line)}
+input[type=text],input[type=password]{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:100%}
+input:focus{outline:none;border-color:var(--gold)}
+header{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+header h1{font-size:16px;margin:0;letter-spacing:.3px}
+header h1 span{color:var(--gold)}
+.spacer{flex:1}
+#status{color:var(--muted);font-size:12.5px}
+#status.err{color:var(--red)} #status.ok{color:var(--teal)} #status.dirty{color:var(--gold)}
+.layout{display:flex;min-height:calc(100% - 55px)}
+nav{width:230px;flex:none;border-right:1px solid var(--line);padding:12px 10px;background:var(--panel)}
+nav .proj{display:block;width:100%;text-align:left;background:transparent;border:1px solid transparent;padding:8px 10px;margin-bottom:4px}
+nav .proj.active{background:var(--panel2);border-color:var(--line)}
+nav .proj .name{display:flex;justify-content:space-between;gap:6px}
+nav .proj .pct{color:var(--muted);font-size:12px}
+.bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--gold));width:0}
+main{flex:1;padding:18px;min-width:0}
+.ptitle{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.ptitle h2{margin:0;font-size:20px}
+.ptitle .meta{color:var(--muted);font-size:12.5px}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;align-items:start}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px;min-height:120px}
+.col.over{border-color:var(--gold)}
+.col h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.col h3 .count{background:var(--panel2);border-radius:10px;padding:0 7px;font-size:11.5px}
+.col h3 .add{margin-left:auto;font-size:18px;line-height:1;padding:0 8px}
+.col[data-sec="Now"] h3{color:var(--gold)}
+.item{display:flex;align-items:flex-start;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px;cursor:grab}
+.item.dragging{opacity:.4}
+.item input[type=checkbox]{margin-top:3px;accent-color:var(--teal);width:15px;height:15px;flex:none;cursor:pointer}
+.item .txt{flex:1;word-break:break-word;white-space:pre-wrap;min-width:0}
+.item.done .txt{color:var(--muted);text-decoration:line-through}
+.item .del{opacity:0}
+.item:hover .del{opacity:1}
+.item .edit{flex:1}
+.raw{color:var(--muted);font-size:12.5px;padding:2px 4px;white-space:pre-wrap}
+.newrow{margin-bottom:6px}
+.overview{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer}
+.card:hover{border-color:#3a4150}
+.card h4{margin:0;display:flex;justify-content:space-between}
+.card h4 span{color:var(--muted);font-weight:400;font-size:12.5px}
+.card ul{margin:10px 0 0;padding-left:18px;color:#c9ceda}
+.card li{margin-bottom:3px}
+.card .none{color:var(--muted);margin-top:10px}
+.settings{max-width:520px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.settings p{color:var(--muted)}
+.row{display:flex;gap:8px;margin-top:10px}
+.hint{color:var(--muted);font-size:12px;margin-top:14px}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11.5px}
+@media (max-width:760px){
+  .layout{flex-direction:column}
+  nav{width:auto;border-right:none;border-bottom:1px solid var(--line);display:flex;overflow-x:auto;gap:6px}
+  nav .proj{min-width:150px;margin:0}
+  .item .del{opacity:1}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>AF Gaming <span>HQ</span></h1>
+  <div class="spacer"></div>
+  <span id="status"></span>
+  <button id="reloadBtn" title="Reload from GitHub">⟳</button>
+  <button id="saveBtn" class="primary" disabled title="Ctrl+S">Save</button>
+  <button id="setBtn" class="icon" title="Settings">⚙</button>
+</header>
+<div class="layout">
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
+
+<script>
+const OWNER = "ahmedwagehfadl";
+const LIST_REPO = "UnityProjectsWorkspace";
+const LIST_FILE = "HQ_PROJECTS.json";
+const FILE = "TASKS.md";
+const STD = ["Now","Next","Backlog","Done"];
+const LS_TOKEN = "afhq.token";
+
+let token = "";
+try { token = localStorage.getItem(LS_TOKEN) || ""; } catch(e) {}
+
+let projects = [];          // [{name, repo}]
+let cache = {};             // repo -> {model, sha}
+let current = null;         // repo or "__overview"
+let ops = [];               // pending local operations for current repo
+let drag = null;
+
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null) n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+};
+function status(msg, cls = "") { const s = $("#status"); s.textContent = msg; s.className = cls; }
+
+/* ---------- GitHub API ---------- */
+async function gh(path, opts = {}) {
+  const r = await fetch("https://api.github.com" + path, {
+    cache: "no-store",
+    ...opts,
+    headers: { "Accept": "application/vnd.github+json", "Authorization": "Bearer " + token,
+               "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) }
+  });
+  if (!r.ok) {
+    let m = r.status + "";
+    try { const j = await r.json(); m += " " + (j.message || ""); } catch(e) {}
+    const err = new Error(m); err.status = r.status; throw err;
+  }
+  return r.json();
+}
+const b64dec = b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g, "")), c => c.charCodeAt(0)));
+const b64enc = s => { const by = new TextEncoder().encode(s); let bin = ""; for (const x of by) bin += String.fromCharCode(x); return btoa(bin); };
+
+async function getFile(repo, file) {
+  const j = await gh(`/repos/${OWNER}/${repo}/contents/${encodeURIComponent(file)}?ref=main&t=${Date.now()}`);
+  return { text: b64dec(j.content), sha: j.sha };
+}
+
+/* ---------- TASKS.md parse / serialize ---------- */
+function parse(text) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const model = { head: [], sections: [] };
+  let sec = null;
+  for (const line of lines) {
+    const h = line.match(/^##\s+(.+?)\s*$/);
+    if (h) { sec = { title: h[1], lines: [] }; model.sections.push(sec); continue; }
+    const it = line.match(/^\s*[-*]\s+\[( |x|X)\]\s?(.*)$/);
+    if (!sec) { model.head.push(line); continue; }
+    if (it) sec.lines.push({ kind: "item", done: it[1] !== " ", text: it[2] });
+    else sec.lines.push({ kind: "raw", text: line });
+  }
+  for (const s of STD) if (!findSec(model, s)) model.sections.push({ title: s, lines: [] });
+  return model;
+}
+function serialize(model) {
+  const head = model.head.slice();
+  while (head.length && head[head.length - 1].trim() === "") head.pop();
+  const out = [head.join("\n")];
+  for (const s of model.sections) {
+    const body = s.lines.map(l => l.kind === "item" ? `- [${l.done ? "x" : " "}] ${l.text}` : l.text);
+    while (body.length && body[body.length - 1].trim() === "") body.pop();
+    out.push(`## ${s.title}` + (body.length ? "\n" + body.join("\n") : ""));
+  }
+  return out.join("\n\n") + "\n";
+}
+const findSec = (m, t) => m.sections.find(s => s.title.toLowerCase() === t.toLowerCase());
+const items = m => m.sections.flatMap(s => s.lines.filter(l => l.kind === "item"));
+function progress(m) {
+  const all = items(m), done = all.filter(i => i.done).length;
+  return { done, total: all.length, pct: all.length ? Math.round(done * 100 / all.length) : 0 };
+}
+function locate(m, text) {
+  for (const s of m.sections) { const i = s.lines.findIndex(l => l.kind === "item" && l.text === text); if (i >= 0) return { s, i }; }
+  return null;
+}
+
+/* ---------- operations (re-applied on top of the latest file at save time) ---------- */
+function applyOp(m, op) {
+  if (op.t === "add") {
+    let s = findSec(m, op.sec); if (!s) { s = { title: op.sec, lines: [] }; m.sections.push(s); }
+    const idx = Math.min(op.index ?? s.lines.length, s.lines.length);
+    s.lines.splice(idx, 0, { kind: "item", done: op.sec.toLowerCase() === "done", text: op.text });
+    return;
+  }
+  const at = locate(m, op.text); if (!at) return;
+  const it = at.s.lines[at.i];
+  if (op.t === "del") at.s.lines.splice(at.i, 1);
+  else if (op.t === "edit") it.text = op.to;
+  else if (op.t === "move") {
+    at.s.lines.splice(at.i, 1);
+    let s = findSec(m, op.sec); if (!s) { s = { title: op.sec, lines: [] }; m.sections.push(s); }
+    if (op.done !== undefined) it.done = op.done;
+    const idx = Math.min(op.index ?? s.lines.length, s.lines.length);
+    s.lines.splice(idx, 0, it);
+  }
+}
+function doOp(op) {
+  applyOp(cache[current].model, op);
+  ops.push(op);
+  markDirty();
+  renderBoard();
+  renderNav();
+}
+function markDirty() {
+  $("#saveBtn").disabled = ops.length === 0;
+  if (ops.length) status(`${ops.length} unsaved change${ops.length > 1 ? "s" : ""}`, "dirty");
+}
+
+/* ---------- loading ---------- */
+async function loadAll() {
+  if (!token) { renderSettings(); return; }
+  status("Loading…");
+  try {
+    const list = await getFile(LIST_REPO, LIST_FILE);
+    projects = JSON.parse(list.text);
+  } catch (e) {
+    status("Can't read project list: " + e.message, "err");
+    if (e.status === 401 || e.status === 403 || e.status === 404) renderSettings(e.message);
+    return;
+  }
+  await Promise.all(projects.map(p => loadRepo(p.repo).catch(e => { cache[p.repo] = { error: e.message }; })));
+  status("Up to date", "ok");
+  renderNav();
+  const want = location.hash.slice(1);
+  show(projects.some(p => p.repo === want) ? want : (current && current !== "__settings" ? current : "__overview"));
+}
+async function loadRepo(repo) {
+  try {
+    const f = await getFile(repo, FILE);
+    cache[repo] = { model: parse(f.text), sha: f.sha };
+  } catch (e) {
+    if (e.status === 404) cache[repo] = { model: parse("# Tasks\n"), sha: null };
+    else throw e;
+  }
+}
+
+/* ---------- saving ---------- */
+async function save() {
+  if (!ops.length || !current || !cache[current]?.model) return;
+  const repo = current, pending = ops.slice();
+  $("#saveBtn").disabled = true; status("Saving…");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      let latest;
+      try { const f = await getFile(repo, FILE); latest = { model: parse(f.text), sha: f.sha }; }
+      catch (e) { if (e.status === 404) latest = { model: parse("# Tasks\n"), sha: null }; else throw e; }
+      const merged = latest.model;
+      for (const op of pending) applyOp(merged, op);
+      const body = { message: `Tasks: ${summary(pending)} (dashboard)`, content: b64enc(serialize(merged)), branch: "main" };
+      if (latest.sha) body.sha = latest.sha;
+      const r = await gh(`/repos/${OWNER}/${repo}/contents/${FILE}`, { method: "PUT", body: JSON.stringify(body) });
+      cache[repo] = { model: merged, sha: r.content.sha };
+      ops = [];
+      status("Saved ✓ " + new Date().toLocaleTimeString(), "ok");
+      renderNav(); renderBoard();
+      return;
+    } catch (e) {
+      if (e.status === 409 && attempt < 2) continue;
+      status("Save failed: " + e.message, "err");
+      $("#saveBtn").disabled = false;
+      return;
+    }
+  }
+}
+function summary(p) {
+  const c = { add: 0, done: 0, other: 0 };
+  for (const o of p) { if (o.t === "add") c.add++; else if (o.t === "move" && o.done) c.done++; else c.other++; }
+  const parts = [];
+  if (c.add) parts.push(`+${c.add} task${c.add > 1 ? "s" : ""}`);
+  if (c.done) parts.push(`${c.done} done`);
+  if (c.other) parts.push(`${c.other} edit${c.other > 1 ? "s" : ""}`);
+  return parts.join(", ");
+}
+
+/* ---------- rendering ---------- */
+function renderNav() {
+  const nav = $("#nav"); nav.innerHTML = "";
+  nav.append(el("button", { class: "proj" + (current === "__overview" ? " active" : ""), onclick: () => show("__overview") },
+    el("div", { class: "name" }, el("b", {}, "Overview"))));
+  for (const p of projects) {
+    const c = cache[p.repo];
+    const pr = c?.model ? progress(c.model) : null;
+    const bar = el("div", { class: "bar" }, el("i")); if (pr) bar.firstChild.style.width = pr.pct + "%";
+    nav.append(el("button", { class: "proj" + (current === p.repo ? " active" : ""), onclick: () => show(p.repo) },
+      el("div", { class: "name" }, el("span", {}, p.name), el("span", { class: "pct" }, c?.error ? "!" : pr ? pr.pct + "%" : "…")),
+      bar));
+  }
+}
+function show(target) {
+  if (ops.length && target !== current && !confirm("You have unsaved changes. Discard them?")) return;
+  if (target !== current && ops.length) { ops = []; loadRepo(current).then(() => { renderNav(); }); markDirty(); }
+  current = target;
+  history.replaceState(null, "", target.startsWith("__") ? location.pathname : "#" + target);
+  $("#saveBtn").style.display = target.startsWith("__") ? "none" : "";
+  renderNav();
+  if (target === "__overview") renderOverview();
+  else if (target === "__settings") renderSettings();
+  else renderBoard();
+}
+function renderOverview() {
+  const m = $("#main"); m.innerHTML = "";
+  m.append(el("div", { class: "ptitle" }, el("h2", {}, "All projects"), el("span", { class: "meta" }, "What's in Now for each project")));
+  const grid = el("div", { class: "overview" });
+  for (const p of projects) {
+    const c = cache[p.repo];
+    const card = el("div", { class: "card", onclick: () => show(p.repo) });
+    if (!c?.model) { card.append(el("h4", {}, p.name), el("div", { class: "none" }, c?.error || "Loading…")); grid.append(card); continue; }
+    const pr = progress(c.model);
+    const bar = el("div", { class: "bar" }, el("i")); bar.firstChild.style.width = pr.pct + "%";
+    const now = (findSec(c.model, "Now")?.lines || []).filter(l => l.kind === "item" && !l.done);
+    card.append(el("h4", {}, p.name, el("span", {}, `${pr.done}/${pr.total} · ${pr.pct}%`)), bar);
+    if (now.length) card.append(el("ul", {}, ...now.slice(0, 5).map(i => el("li", { dir: "auto" }, i.text))));
+    else card.append(el("div", { class: "none" }, "Nothing in Now"));
+    grid.append(card);
+  }
+  m.append(grid);
+}
+function renderBoard() {
+  if (!current || current.startsWith("__")) return;
+  const p = projects.find(x => x.repo === current), c = cache[current];
+  const m = $("#main"); m.innerHTML = "";
+  if (!c?.model) { m.append(el("p", {}, c?.error || "Loading…")); return; }
+  const pr = progress(c.model);
+  const meta = el("span", { class: "meta" }, `${pr.done}/${pr.total} done · ${pr.pct}% · `,
+    el("a", { href: `https://github.com/${OWNER}/${current}/blob/main/${FILE}`, target: "_blank", style: "color:var(--muted)" }, `${current}/${FILE}`));
+  m.append(el("div", { class: "ptitle" }, el("h2", {}, p?.name || current), meta));
+  const board = el("div", { class: "board" });
+  c.model.sections.forEach(s => board.append(renderCol(s)));
+  m.append(board);
+}
+function renderCol(s) {
+  const its = s.lines.filter(l => l.kind === "item");
+  const col = el("div", { class: "col", "data-sec": s.title });
+  const list = el("div", { class: "list" });
+  col.append(el("h3", {}, s.title, el("span", { class: "count" }, its.length),
+    el("button", { class: "icon add", title: "Add task", onclick: () => addRow(list, s.title) }, "+")), list);
+  s.lines.forEach(l => {
+    if (l.kind === "raw") { if (l.text.trim()) list.append(el("div", { class: "raw", dir: "auto" }, l.text)); return; }
+    list.append(renderItem(l, s.title));
+  });
+  col.addEventListener("dragover", e => { if (!drag) return; e.preventDefault(); col.classList.add("over"); });
+  col.addEventListener("dragleave", () => col.classList.remove("over"));
+  col.addEventListener("drop", e => {
+    e.preventDefault(); col.classList.remove("over"); if (!drag) return;
+    const after = [...list.querySelectorAll(".item:not(.dragging)")].find(n => e.clientY < n.getBoundingClientRect().top + n.offsetHeight / 2);
+    let index = after ? s.lines.findIndex(l => l.kind === "item" && l.text === after.dataset.text) : s.lines.length;
+    const src = locate(cache[current].model, drag);
+    if (src && src.s === s && src.i < index) index--;
+    const toDone = s.title.toLowerCase() === "done";
+    doOp({ t: "move", text: drag, sec: s.title, index, done: toDone ? true : (src?.s.lines[src.i].done && !toDone ? false : undefined) });
+    drag = null;
+  });
+  return col;
+}
+function renderItem(l, secTitle) {
+  const cb = el("input", { type: "checkbox" }); cb.checked = l.done;
+  cb.addEventListener("change", () => {
+    if (cb.checked) doOp({ t: "move", text: l.text, sec: "Done", index: 0, done: true });
+    else doOp({ t: "move", text: l.text, sec: secTitle.toLowerCase() === "done" ? "Now" : secTitle, done: false });
+  });
+  const txt = el("div", { class: "txt", dir: "auto", title: "Double-click to edit" }, l.text);
+  const row = el("div", { class: "item" + (l.done ? " done" : ""), draggable: "true", "data-text": l.text }, cb, txt,
+    el("button", { class: "icon del", title: "Delete", onclick: () => { if (confirm("Delete this task?")) doOp({ t: "del", text: l.text }); } }, "×"));
+  txt.addEventListener("dblclick", () => {
+    const inp = el("input", { type: "text", class: "edit", dir: "auto" }); inp.value = l.text;
+    txt.replaceWith(inp); inp.focus(); inp.select();
+    let done = false;
+    const finish = ok => {
+      if (done) return; done = true;
+      const v = inp.value.trim();
+      if (ok && v && v !== l.text && !locate(cache[current].model, v)) doOp({ t: "edit", text: l.text, to: v });
+      else renderBoard();
+    };
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
+    inp.addEventListener("blur", () => finish(true));
+  });
+  row.addEventListener("dragstart", e => { drag = l.text; row.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", l.text); });
+  row.addEventListener("dragend", () => { row.classList.remove("dragging"); });
+  return row;
+}
+function addRow(list, sec) {
+  if (list.querySelector(".newrow")) { list.querySelector(".newrow input").focus(); return; }
+  const inp = el("input", { type: "text", dir: "auto", placeholder: "New task… (Enter to add, Esc to close)" });
+  const wrap = el("div", { class: "newrow" }, inp);
+  list.prepend(wrap); inp.focus();
+  inp.addEventListener("keydown", e => {
+    if (e.key === "Escape") { wrap.remove(); return; }
+    if (e.key !== "Enter") return;
+    const v = inp.value.trim(); if (!v) return;
+    if (locate(cache[current].model, v)) { status("That task already exists", "err"); return; }
+    const s = findSec(cache[current].model, sec);
+    const firstItem = s ? s.lines.findIndex(l => l.kind === "item") : -1;
+    doOp({ t: "add", text: v, sec, index: firstItem >= 0 ? firstItem : (s ? s.lines.length : 0) });
+    const list2 = document.querySelector(`.col[data-sec="${CSS.escape(sec)}"] .list`);
+    if (list2) addRow(list2, sec);   // keep the box open for the next task
+  });
+}
+function renderSettings(err) {
+  current = "__settings";
+  $("#saveBtn").style.display = "none";
+  const m = $("#main"); m.innerHTML = "";
+  const inp = el("input", { type: "password", placeholder: "github_pat_…", autocomplete: "off" }); inp.value = token;
+  const box = el("div", { class: "settings" },
+    el("h2", { style: "margin-top:0" }, "Settings"),
+    el("p", {}, "Paste your GitHub fine-grained token (Contents: read & write on your project repos). It stays in this browser only."),
+    inp,
+    el("div", { class: "row" },
+      el("button", { class: "primary", onclick: () => { token = inp.value.trim(); try { localStorage.setItem(LS_TOKEN, token); } catch(e) {} current = null; loadAll(); } }, "Save token"),
+      el("button", { onclick: () => { token = ""; inp.value = ""; try { localStorage.removeItem(LS_TOKEN); } catch(e) {} status("Token removed"); } }, "Remove token")),
+    err ? el("p", { style: "color:var(--red)" }, err) : null,
+    el("div", { class: "hint" }, "Tips: + adds a task · tick = done · double-click to edit · drag between columns · ", el("kbd", {}, "Ctrl"), "+", el("kbd", {}, "S"), " saves."));
+  m.append(box);
+  renderNav();
+}
+
+/* ---------- wiring ---------- */
+$("#saveBtn").addEventListener("click", save);
+$("#reloadBtn").addEventListener("click", () => {
+  if (ops.length && !confirm("Discard unsaved changes and reload?")) return;
+  ops = []; markDirty(); loadAll();
+});
+$("#setBtn").addEventListener("click", () => { if (ops.length && !confirm("Discard unsaved changes?")) return; ops = []; markDirty(); renderSettings(); });
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } });
+window.addEventListener("beforeunload", e => { if (ops.length) { e.preventDefault(); e.returnValue = ""; } });
+loadAll();
+</script>
+</body>
+</html>
