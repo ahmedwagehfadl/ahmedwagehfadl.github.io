@@ -68,6 +68,8 @@ main{flex:1;padding:18px;min-width:0}
 .settings p{color:var(--muted)}
 .row{display:flex;gap:8px;margin-top:10px}
 .hint{color:var(--muted);font-size:12px;margin-top:14px}
+.upd{display:block;color:var(--muted);font-size:11.5px;margin-top:4px}
+.ptitle .upd{display:inline;margin:0}
 kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11.5px}
 @media (max-width:760px){
   .layout{flex-direction:column}
@@ -246,6 +248,27 @@ async function loadRepo(p) {
     if (e.status === 404) cache[p.id] = { model: parse("# Tasks\n"), sha: null };
     else throw e;
   }
+  // last change of this task file (who/when)
+  try {
+    const cs = await gh(`/repos/${OWNER}/${p.repo}/commits?path=${encodeURIComponent(p.path)}&sha=main&per_page=1&t=${Date.now()}`);
+    if (cs[0]) cache[p.id].updated = { at: cs[0].commit.committer.date, msg: cs[0].commit.message.split("\n")[0] };
+  } catch (e) {}
+}
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  if (s < 86400 * 30) return Math.floor(s / 86400) + " d ago";
+  return new Date(iso).toLocaleDateString();
+}
+const fullTime = iso => new Date(iso).toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+function updEl(c, long) {
+  if (!c?.updated) return null;
+  const by = /\(dashboard\)$/.test(c.updated.msg) ? "you (dashboard)" : "AI / git";
+  return el("span", { class: "upd", title: `${fullTime(c.updated.at)} — ${c.updated.msg}` },
+    long ? `Updated ${ago(c.updated.at)} · ${fullTime(c.updated.at)} · by ${by}` : `Updated ${ago(c.updated.at)}`);
 }
 
 /* ---------- saving ---------- */
@@ -263,7 +286,7 @@ async function save() {
       const body = { message: `Tasks: ${summary(pending)} (dashboard)`, content: b64enc(serialize(merged)), branch: "main" };
       if (latest.sha) body.sha = latest.sha;
       const r = await gh(`/repos/${OWNER}/${p.repo}/contents/${p.path}`, { method: "PUT", body: JSON.stringify(body) });
-      cache[id] = { model: merged, sha: r.content.sha };
+      cache[id] = { model: merged, sha: r.content.sha, updated: { at: r.commit?.committer?.date || new Date().toISOString(), msg: body.message } };
       ops = [];
       status("Saved ✓ " + new Date().toLocaleTimeString(), "ok");
       renderNav(); renderBoard();
@@ -297,7 +320,7 @@ function renderNav() {
     const bar = el("div", { class: "bar" }, el("i")); if (pr) bar.firstChild.style.width = pr.pct + "%";
     nav.append(el("button", { class: "proj" + (current === p.id ? " active" : ""), onclick: () => show(p.id) },
       el("div", { class: "name" }, el("span", {}, p.name), el("span", { class: "pct" }, c?.error ? "!" : pr ? pr.pct + "%" : "…")),
-      bar));
+      bar, updEl(c)));
   }
 }
 function show(target) {
@@ -322,7 +345,7 @@ function renderOverview() {
     const pr = progress(c.model);
     const bar = el("div", { class: "bar" }, el("i")); bar.firstChild.style.width = pr.pct + "%";
     const now = (findSec(c.model, "Now")?.lines || []).filter(l => l.kind === "item" && !l.done);
-    card.append(el("h4", {}, p.name, el("span", {}, `${pr.done}/${pr.total} · ${pr.pct}%`)), bar);
+    card.append(el("h4", {}, p.name, el("span", {}, `${pr.done}/${pr.total} · ${pr.pct}%`)), bar, updEl(c));
     if (now.length) card.append(el("ul", {}, ...now.slice(0, 5).map(i => el("li", { dir: "auto" }, i.text))));
     else card.append(el("div", { class: "none" }, "Nothing in Now"));
     grid.append(card);
@@ -338,7 +361,7 @@ function renderBoard() {
   const pr = progress(c.model);
   const meta = el("span", { class: "meta" }, `${pr.done}/${pr.total} done · ${pr.pct}% · `,
     el("a", { href: `https://github.com/${OWNER}/${p.repo}/blob/main/${p.path}`, target: "_blank", style: "color:var(--muted)" }, `${p.repo}/${p.path}`));
-  m.append(el("div", { class: "ptitle" }, el("h2", {}, p?.name || current), meta));
+  m.append(el("div", { class: "ptitle" }, el("h2", {}, p?.name || current), meta, updEl(c, true)));
   const board = el("div", { class: "board" });
   c.model.sections.forEach(s => board.append(renderCol(s)));
   m.append(board);
@@ -443,6 +466,15 @@ $("#reloadBtn").addEventListener("click", () => {
 $("#setBtn").addEventListener("click", () => { if (ops.length && !confirm("Discard unsaved changes?")) return; ops = []; markDirty(); renderSettings(); });
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } });
 window.addEventListener("beforeunload", e => { if (ops.length) { e.preventDefault(); e.returnValue = ""; } });
+// keep "Updated x min ago" fresh; quietly re-check GitHub every 2 min when nothing is unsaved
+setInterval(() => { renderNav(); if (current === "__overview") renderOverview();
+  else if (!ops.length && !document.querySelector(".newrow, .item .edit")) { document.querySelectorAll(".ptitle .upd").forEach(n => { const c = cache[current]; const u = updEl(c, true); if (u) n.replaceWith(u); }); } }, 60000);
+setInterval(async () => {
+  if (!token || ops.length || current === "__settings" || document.querySelector(".newrow, .item .edit")) return;
+  await Promise.all(projects.map(p => loadRepo(p).catch(() => {})));
+  if (ops.length || document.querySelector(".newrow, .item .edit")) return;
+  renderNav(); if (current === "__overview") renderOverview(); else renderBoard();
+}, 120000);
 loadAll();
 </script>
 </body>
